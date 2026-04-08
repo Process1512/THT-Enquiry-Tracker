@@ -1,0 +1,5 @@
+{
+  "name": "THT Enquiry Tracker App",
+  "description": "A web application to track and manage THT enquiries, their statuses, and details.",
+  "requestFramePermissions": []
+}
