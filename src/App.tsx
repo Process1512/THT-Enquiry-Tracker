@@ -41,7 +41,13 @@ export default function App() {
   const handleUpdateInquiry = async (id: string, updates: Partial<Inquiry>) => {
     try {
       const docRef = doc(db, 'inquiries', id);
-      await updateDoc(docRef, updates);
+      
+      // Remove undefined values to prevent Firestore errors
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, v]) => v !== undefined)
+      );
+
+      await updateDoc(docRef, cleanUpdates);
     } catch (error) {
       console.error("Error updating inquiry", error);
       alert("Failed to update inquiry.");
@@ -70,8 +76,14 @@ export default function App() {
       ...newInquiryData,
       srNo: newSrNo
     };
+    
+    // Remove undefined values to prevent Firestore errors
+    const cleanData = Object.fromEntries(
+      Object.entries(newInquiry).filter(([_, v]) => v !== undefined)
+    );
+
     try {
-      await setDoc(doc(db, 'inquiries', newInquiry.id), newInquiry);
+      await setDoc(doc(db, 'inquiries', newInquiry.id), cleanData);
     } catch (error) {
       console.error("Error creating inquiry", error);
       alert("Failed to create inquiry.");
