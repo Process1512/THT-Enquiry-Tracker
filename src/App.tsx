@@ -24,6 +24,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<InquiryStatus | 'All'>('All');
   const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [inquiryToDelete, setInquiryToDelete] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -61,12 +62,16 @@ export default function App() {
     }
   };
 
-  const handleDeleteInquiry = async (id: string) => {
-    if (!user) return;
-    if (!window.confirm("Are you sure you want to delete this inquiry?")) return;
+  const handleDeleteInquiry = (id: string) => {
+    setInquiryToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!user || !inquiryToDelete) return;
     try {
-      await deleteDoc(doc(db, 'inquiries', id));
-      if (selectedInquiryId === id) setSelectedInquiryId(null);
+      await deleteDoc(doc(db, 'inquiries', inquiryToDelete));
+      if (selectedInquiryId === inquiryToDelete) setSelectedInquiryId(null);
+      setInquiryToDelete(null);
     } catch (error) {
       console.error("Error deleting inquiry", error);
       alert("Failed to delete inquiry.");
@@ -302,7 +307,7 @@ export default function App() {
           const inputsRev = getVal(['rev', 'input']) || '';
           
           const parseDate = (val: any) => {
-            if (!val || String(val).trim() === '-' || String(val).trim() === '') return undefined;
+            if (!val || String(val).trim() === '-' || String(val).trim() === '') return null;
             
             let d = new Date(val);
             if (isNaN(d.getTime()) && typeof val === 'string') {
@@ -312,7 +317,7 @@ export default function App() {
                   d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
                }
             }
-            return isNaN(d.getTime()) ? undefined : d.toISOString();
+            return isNaN(d.getTime()) ? null : d.toISOString();
           };
 
           const receivedDate = parseDate(getVal(['received', 'recv', 'date']));
@@ -367,9 +372,14 @@ export default function App() {
               const existingInq = inquiries.find(i => i.id === newInq.id);
               const docRef = doc(db, 'inquiries', newInq.id);
               
+              // Remove undefined values to prevent Firestore errors
+              const cleanData = Object.fromEntries(
+                Object.entries(newInq).filter(([_, v]) => v !== undefined)
+              );
+
               if (existingInq) {
                 batch.update(docRef, {
-                  ...newInq,
+                  ...cleanData,
                   srNo: existingInq.srNo,
                   notes: existingInq.notes
                 });
@@ -377,7 +387,7 @@ export default function App() {
               } else {
                 maxSrNo++;
                 batch.set(docRef, {
-                  ...newInq,
+                  ...cleanData,
                   srNo: maxSrNo
                 });
                 addedCount++;
@@ -605,6 +615,32 @@ export default function App() {
         onClose={() => setIsAddModalOpen(false)}
         onAdd={handleCreateInquiry}
       />
+
+      {/* Delete Confirmation Modal */}
+      {inquiryToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Inquiry</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete inquiry <span className="font-semibold text-gray-900">{inquiryToDelete}</span>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setInquiryToDelete(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
