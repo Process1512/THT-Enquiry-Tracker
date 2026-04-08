@@ -1,5 +1,5 @@
 import React from 'react';
-import { InquiryStatus, InquiryPriority } from '../types';
+import { InquiryStatus } from '../types';
 
 export const StatusBadge = ({ status }: { status: InquiryStatus }) => {
   const styles = {
@@ -12,20 +12,6 @@ export const StatusBadge = ({ status }: { status: InquiryStatus }) => {
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status]}`}>
       {status}
-    </span>
-  );
-};
-
-export const PriorityBadge = ({ priority }: { priority: InquiryPriority }) => {
-  const styles = {
-    'Low': 'bg-slate-100 text-slate-800',
-    'Medium': 'bg-orange-100 text-orange-800',
-    'High': 'bg-red-100 text-red-800',
-  };
-
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[priority]}`}>
-      {priority}
     </span>
   );
 };

@@ -1,0 +1,99 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: inquiries
+    // Document ID: [THT Enquiry No.]
+    // Fields:
+    //   - id: string (required) - THT Enquiry No.
+    //   - srNo: number (required)
+    //   - equipment: string (required)
+    //   - client: string (required)
+    //   - noOfTag: number (required)
+    //   - inputsRev: string (required)
+    //   - date: string (required)
+    //   - receivedDate: string (optional)
+    //   - submissionDate: string (optional)
+    //   - invoiceRaisedDate: string (optional)
+    //   - paymentReceivedDate: string (optional)
+    //   - status: string (required, enum: New, In Progress, Resolved, Closed)
+    //   - remarks: string (required)
+    //   - invoiceRaised: boolean (required)
+    //   - paymentReceived: boolean (required)
+    //   - notes: list (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+       return request.auth != null;
+    }
+    
+    function hasRequiredFields(fields) {
+       return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function isValidStatus(status) {
+       return status in ['New', 'In Progress', 'Resolved', 'Closed'];
+    }
+    
+    function isValidNote(note) {
+      return note is map &&
+             note.keys().hasAll(['id', 'text', 'date', 'author']) &&
+             note.id is string &&
+             note.text is string && note.text.size() <= 5000 &&
+             note.date is string &&
+             note.author is string && note.author.size() <= 100;
+    }
+    
+    function areValidNotes(notes) {
+      return notes is list && notes.size() <= 100; // Limit number of notes
+    }
+
+    function isValidInquiry(data) {
+      return hasRequiredFields(['id', 'srNo', 'equipment', 'client', 'noOfTag', 'inputsRev', 'date', 'status', 'remarks', 'invoiceRaised', 'paymentReceived', 'notes']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 100 &&
+             data.srNo is number &&
+             data.equipment is string && data.equipment.size() <= 500 &&
+             data.client is string && data.client.size() <= 500 &&
+             data.noOfTag is number && data.noOfTag >= 0 &&
+             data.inputsRev is string && data.inputsRev.size() <= 500 &&
+             data.date is string &&
+             (!('receivedDate' in data) || data.receivedDate == null || data.receivedDate is string) &&
+             (!('submissionDate' in data) || data.submissionDate == null || data.submissionDate is string) &&
+             (!('invoiceRaisedDate' in data) || data.invoiceRaisedDate == null || data.invoiceRaisedDate is string) &&
+             (!('paymentReceivedDate' in data) || data.paymentReceivedDate == null || data.paymentReceivedDate is string) &&
+             data.status is string && isValidStatus(data.status) &&
+             data.remarks is string && data.remarks.size() <= 5000 &&
+             data.invoiceRaised is bool &&
+             data.paymentReceived is bool &&
+             areValidNotes(data.notes);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /inquiries/{inquiryId} {
+      // Allow any authenticated user to read all inquiries
+      allow read: if isAuthenticated();
+      
+      // Allow any authenticated user to create an inquiry
+      allow create: if isAuthenticated() && isValidInquiry(request.resource.data);
+      
+      // Allow any authenticated user to update an inquiry
+      allow update: if isAuthenticated() && isValidInquiry(request.resource.data);
+      
+      // Allow any authenticated user to delete an inquiry
+      allow delete: if isAuthenticated();
+    }
+  }
+}

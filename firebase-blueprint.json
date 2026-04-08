@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "Note": {
+      "title": "Note",
+      "description": "A note attached to an inquiry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "author": { "type": "string" }
+      },
+      "required": ["id", "text", "date", "author"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "A THT Enquiry record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "THT Enquiry No." },
+        "srNo": { "type": "number" },
+        "equipment": { "type": "string" },
+        "client": { "type": "string" },
+        "noOfTag": { "type": "number" },
+        "inputsRev": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "receivedDate": { "type": "string", "format": "date-time" },
+        "submissionDate": { "type": "string", "format": "date-time" },
+        "invoiceRaisedDate": { "type": "string", "format": "date-time" },
+        "paymentReceivedDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["New", "In Progress", "Resolved", "Closed"] },
+        "remarks": { "type": "string" },
+        "invoiceRaised": { "type": "boolean" },
+        "paymentReceived": { "type": "boolean" },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Note" }
+        }
+      },
+      "required": ["id", "srNo", "equipment", "client", "noOfTag", "inputsRev", "date", "status", "remarks", "invoiceRaised", "paymentReceived", "notes"]
+    }
+  },
+  "firestore": {
+    "/inquiries/{inquiryId}": {
+      "schema": "#/entities/Inquiry",
+      "description": "Stores all THT inquiries"
+    }
+  }
+}

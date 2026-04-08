@@ -3,62 +3,112 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useRef } from 'react';
-import { Inbox, Clock, CheckCircle, Search, Filter, LayoutDashboard, Check, X, Plus, FileSpreadsheet, FileText, Upload } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Inbox, Clock, CheckCircle, Search, Filter, LayoutDashboard, Check, X, Plus, FileSpreadsheet, FileText, Upload, LogOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { MOCK_INQUIRIES } from './data';
 import { Inquiry, InquiryStatus } from './types';
 import { StatusBadge } from './components/Badge';
 import InquiryDetailsPanel from './components/InquiryDetailsPanel';
 import AddInquiryModal from './components/AddInquiryModal';
+import { db, auth, signInWithGoogle, logOut } from './firebase';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function App() {
-  const [inquiries, setInquiries] = useState<Inquiry[]>(MOCK_INQUIRIES);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<InquiryStatus | 'All'>('All');
   const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUpdateInquiry = (id: string, updates: Partial<Inquiry>) => {
-    setInquiries(prev => prev.map(inq => 
-      inq.id === id ? { ...inq, ...updates } : inq
-    ));
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthReady || !user) return;
+
+    const unsubscribe = onSnapshot(collection(db, 'inquiries'), (snapshot) => {
+      const inquiriesData: Inquiry[] = [];
+      snapshot.forEach((doc) => {
+        inquiriesData.push({ id: doc.id, ...doc.data() } as Inquiry);
+      });
+      setInquiries(inquiriesData);
+    }, (error) => {
+      console.error("Firestore Error: ", error);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthReady, user]);
+
+  const handleUpdateInquiry = async (id: string, updates: Partial<Inquiry>) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'inquiries', id);
+      await updateDoc(docRef, updates);
+    } catch (error) {
+      console.error("Error updating inquiry", error);
+      alert("Failed to update inquiry.");
+    }
   };
 
-  const handleDeleteInquiry = (id: string) => {
-    setInquiries(prev => prev.filter(inq => inq.id !== id));
+  const handleDeleteInquiry = async (id: string) => {
+    if (!user) return;
+    if (!window.confirm("Are you sure you want to delete this inquiry?")) return;
+    try {
+      await deleteDoc(doc(db, 'inquiries', id));
+      if (selectedInquiryId === id) setSelectedInquiryId(null);
+    } catch (error) {
+      console.error("Error deleting inquiry", error);
+      alert("Failed to delete inquiry.");
+    }
   };
 
-  const handleCreateInquiry = (newInquiryData: Omit<Inquiry, 'srNo'>) => {
+  const handleCreateInquiry = async (newInquiryData: Omit<Inquiry, 'srNo'>) => {
+    if (!user) return;
     const newSrNo = inquiries.length > 0 ? Math.max(...inquiries.map(i => i.srNo)) + 1 : 1;
     const newInquiry: Inquiry = {
       ...newInquiryData,
       srNo: newSrNo
     };
-    setInquiries([...inquiries, newInquiry]);
+    try {
+      await setDoc(doc(db, 'inquiries', newInquiry.id), newInquiry);
+    } catch (error) {
+      console.error("Error creating inquiry", error);
+      alert("Failed to create inquiry.");
+    }
   };
 
-  const handleAddNote = (id: string, text: string) => {
-    setInquiries(prev => prev.map(inq => {
-      if (inq.id === id) {
-        return {
-          ...inq,
-          notes: [
-            ...inq.notes,
-            {
-              id: `n${Date.now()}`,
-              text,
-              date: new Date().toISOString(),
-              author: 'Current User'
-            }
-          ]
-        };
-      }
-      return inq;
-    }));
+  const handleAddNote = async (id: string, text: string) => {
+    if (!user) return;
+    const inquiry = inquiries.find(i => i.id === id);
+    if (!inquiry) return;
+
+    const newNote = {
+      id: `n${Date.now()}`,
+      text,
+      date: new Date().toISOString(),
+      author: user.displayName || user.email || 'Current User'
+    };
+
+    try {
+      const docRef = doc(db, 'inquiries', id);
+      await updateDoc(docRef, {
+        notes: [...inquiry.notes, newNote]
+      });
+    } catch (error) {
+      console.error("Error adding note", error);
+      alert("Failed to add note.");
+    }
   };
 
   const filteredInquiries = useMemo(() => {
@@ -305,34 +355,44 @@ export default function App() {
            return;
         }
 
-        setInquiries(prev => {
-          const merged = [...prev];
-          let addedCount = 0;
-          let updatedCount = 0;
+        const importData = async () => {
+          if (!user) return;
+          try {
+            const batch = writeBatch(db);
+            let addedCount = 0;
+            let updatedCount = 0;
+            let maxSrNo = inquiries.reduce((max, inq) => Math.max(max, inq.srNo || 0), 0);
 
-          newInquiries.forEach(newInq => {
-            const existingIdx = merged.findIndex(i => i.id === newInq.id);
-            if (existingIdx >= 0) {
-              merged[existingIdx] = { 
-                  ...merged[existingIdx], 
-                  ...newInq, 
-                  srNo: merged[existingIdx].srNo,
-                  notes: merged[existingIdx].notes 
-              };
-              updatedCount++;
-            } else {
-              const maxSrNo = merged.reduce((max, inq) => Math.max(max, inq.srNo || 0), 0);
-              merged.push({ ...newInq, srNo: maxSrNo + 1 });
-              addedCount++;
-            }
-          });
-          
-          setTimeout(() => {
-              alert(`Import successful!\nAdded: ${addedCount} new enquiries\nUpdated: ${updatedCount} existing enquiries`);
-          }, 100);
+            newInquiries.forEach(newInq => {
+              const existingInq = inquiries.find(i => i.id === newInq.id);
+              const docRef = doc(db, 'inquiries', newInq.id);
+              
+              if (existingInq) {
+                batch.update(docRef, {
+                  ...newInq,
+                  srNo: existingInq.srNo,
+                  notes: existingInq.notes
+                });
+                updatedCount++;
+              } else {
+                maxSrNo++;
+                batch.set(docRef, {
+                  ...newInq,
+                  srNo: maxSrNo
+                });
+                addedCount++;
+              }
+            });
 
-          return merged;
-        });
+            await batch.commit();
+            alert(`Import successful!\nAdded: ${addedCount} new enquiries\nUpdated: ${updatedCount} existing enquiries`);
+          } catch (error) {
+            console.error("Error committing batch:", error);
+            alert("Error importing data to database.");
+          }
+        };
+
+        importData();
       } catch (error) {
         console.error("Error parsing Excel file:", error);
         alert("Error parsing Excel file. Please check the format.");
@@ -341,6 +401,30 @@ export default function App() {
     reader.readAsArrayBuffer(file);
     e.target.value = '';
   };
+
+  if (!isAuthReady) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Loading...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 max-w-md w-full text-center">
+          <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LayoutDashboard className="w-8 h-8 text-blue-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">THT Enquiry Tracker</h1>
+          <p className="text-gray-500 mb-8">Sign in to view and manage enquiries collaboratively.</p>
+          <button
+            onClick={signInWithGoogle}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+          >
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
@@ -353,9 +437,23 @@ export default function App() {
             <h1 className="text-xl font-bold tracking-tight text-gray-900">THT Enquiry Tracker</h1>
           </div>
           <div className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
-              CU
+            <div className="flex items-center gap-2">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
+                  {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
+                </div>
+              )}
+              <span className="text-sm font-medium text-gray-700 hidden sm:block">{user.displayName || user.email}</span>
             </div>
+            <button
+              onClick={logOut}
+              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </header>
