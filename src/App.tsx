@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Inbox, Clock, CheckCircle, Search, Filter, LayoutDashboard, Check, X, Plus, FileSpreadsheet, FileText, Upload, LogOut } from 'lucide-react';
+import { Inbox, Clock, CheckCircle, Search, Filter, LayoutDashboard, Check, X, Plus, FileSpreadsheet, FileText, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -12,14 +12,11 @@ import { Inquiry, InquiryStatus } from './types';
 import { StatusBadge } from './components/Badge';
 import InquiryDetailsPanel from './components/InquiryDetailsPanel';
 import AddInquiryModal from './components/AddInquiryModal';
-import { db, auth, signInWithGoogle, logOut } from './firebase';
+import { db } from './firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function App() {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<InquiryStatus | 'All'>('All');
   const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
@@ -28,16 +25,6 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthReady || !user) return;
-
     const unsubscribe = onSnapshot(collection(db, 'inquiries'), (snapshot) => {
       const inquiriesData: Inquiry[] = [];
       snapshot.forEach((doc) => {
@@ -49,10 +36,9 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, user]);
+  }, []);
 
   const handleUpdateInquiry = async (id: string, updates: Partial<Inquiry>) => {
-    if (!user) return;
     try {
       const docRef = doc(db, 'inquiries', id);
       await updateDoc(docRef, updates);
@@ -67,7 +53,7 @@ export default function App() {
   };
 
   const confirmDelete = async () => {
-    if (!user || !inquiryToDelete) return;
+    if (!inquiryToDelete) return;
     try {
       await deleteDoc(doc(db, 'inquiries', inquiryToDelete));
       if (selectedInquiryId === inquiryToDelete) setSelectedInquiryId(null);
@@ -79,7 +65,6 @@ export default function App() {
   };
 
   const handleCreateInquiry = async (newInquiryData: Omit<Inquiry, 'srNo'>) => {
-    if (!user) return;
     const newSrNo = inquiries.length > 0 ? Math.max(...inquiries.map(i => i.srNo)) + 1 : 1;
     const newInquiry: Inquiry = {
       ...newInquiryData,
@@ -94,7 +79,6 @@ export default function App() {
   };
 
   const handleAddNote = async (id: string, text: string) => {
-    if (!user) return;
     const inquiry = inquiries.find(i => i.id === id);
     if (!inquiry) return;
 
@@ -102,7 +86,7 @@ export default function App() {
       id: `n${Date.now()}`,
       text,
       date: new Date().toISOString(),
-      author: user.displayName || user.email || 'Current User'
+      author: 'Anonymous User'
     };
 
     try {
@@ -361,7 +345,6 @@ export default function App() {
         }
 
         const importData = async () => {
-          if (!user) return;
           try {
             const batch = writeBatch(db);
             let addedCount = 0;
@@ -412,30 +395,6 @@ export default function App() {
     e.target.value = '';
   };
 
-  if (!isAuthReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Loading...</div>;
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 max-w-md w-full text-center">
-          <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LayoutDashboard className="w-8 h-8 text-blue-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">THT Enquiry Tracker</h1>
-          <p className="text-gray-500 mb-8">Sign in to view and manage enquiries collaboratively.</p>
-          <button
-            onClick={signInWithGoogle}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
-          >
-            Sign in with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -447,23 +406,10 @@ export default function App() {
             <h1 className="text-xl font-bold tracking-tight text-gray-900">THT Enquiry Tracker</h1>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
-                  {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
-                </div>
-              )}
-              <span className="text-sm font-medium text-gray-700 hidden sm:block">{user.displayName || user.email}</span>
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
+              G
             </div>
-            <button
-              onClick={logOut}
-              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
+            <span className="text-sm font-medium text-gray-700 hidden sm:block">Guest User</span>
           </div>
         </div>
       </header>

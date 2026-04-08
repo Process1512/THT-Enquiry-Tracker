@@ -83,17 +83,17 @@ service cloud.firestore {
     // ===============================================================
 
     match /inquiries/{inquiryId} {
-      // Allow any authenticated user to read all inquiries
-      allow read: if isAuthenticated();
+      // Allow anyone to read all inquiries
+      allow read: if true;
       
-      // Allow any authenticated user to create an inquiry
-      allow create: if isAuthenticated() && isValidInquiry(request.resource.data);
+      // Allow anyone to create an inquiry
+      allow create: if isValidInquiry(request.resource.data);
       
-      // Allow any authenticated user to update an inquiry
-      allow update: if isAuthenticated() && isValidInquiry(request.resource.data);
+      // Allow anyone to update an inquiry
+      allow update: if isValidInquiry(request.resource.data);
       
-      // Allow any authenticated user to delete an inquiry
-      allow delete: if isAuthenticated();
+      // Allow anyone to delete an inquiry
+      allow delete: if true;
     }
   }
 }
