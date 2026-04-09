@@ -98,7 +98,7 @@ export default function InquiryDetailsPanel({ inquiry, isOpen, onClose, onUpdate
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Update Status</label>
                 <div className="flex flex-wrap gap-2">
-                  {(['New', 'In Progress', 'Resolved', 'Closed'] as InquiryStatus[]).map((status) => (
+                  {(['New', 'In Progress', 'Completed', 'In Order Stage'] as InquiryStatus[]).map((status) => (
                     <button
                       key={status}
                       onClick={() => onUpdateInquiry(inquiry.id, { status })}
@@ -178,12 +178,12 @@ export default function InquiryDetailsPanel({ inquiry, isOpen, onClose, onUpdate
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 text-sm text-gray-600">
                     <Calendar className="w-4 h-4 text-gray-400" />
-                    <span className="w-32 text-gray-500">Main Date:</span>
+                    <span className="w-32 text-gray-500">Revision Date:</span>
                     <input 
                       type="date"
-                      value={editData.date ? new Date(editData.date).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setEditData({...editData, date: e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString()})}
-                      onBlur={() => onUpdateInquiry(inquiry.id, { date: editData.date })}
+                      value={editData.revisionDate ? new Date(editData.revisionDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => setEditData({...editData, revisionDate: e.target.value ? new Date(e.target.value).toISOString() : undefined})}
+                      onBlur={() => onUpdateInquiry(inquiry.id, { revisionDate: editData.revisionDate })}
                       className="font-medium text-gray-900 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none w-full transition-colors py-1"
                     />
                   </div>

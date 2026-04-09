@@ -1,4 +1,4 @@
-export type InquiryStatus = 'New' | 'In Progress' | 'Resolved' | 'Closed';
+export type InquiryStatus = 'New' | 'In Progress' | 'Completed' | 'In Order Stage';
 
 export interface Note {
   id: string;
@@ -14,7 +14,7 @@ export interface Inquiry {
   client: string;
   noOfTag: number;
   inputsRev: string;
-  date: string; // This is the main date shown on the dashboard
+  revisionDate?: string;
   receivedDate?: string;
   submissionDate?: string;
   invoiceRaisedDate?: string;

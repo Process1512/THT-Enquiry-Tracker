@@ -142,7 +142,7 @@ export default function App() {
       total: inquiries.length,
       new: inquiries.filter(i => i.status === 'New').length,
       inProgress: inquiries.filter(i => i.status === 'In Progress').length,
-      resolved: inquiries.filter(i => i.status === 'Resolved').length,
+      completed: inquiries.filter(i => i.status === 'Completed').length,
     };
   }, [inquiries]);
 
@@ -153,11 +153,11 @@ export default function App() {
   const exportToExcel = () => {
     const wsData = [
       ["THT Enquiry Tracker Summary"],
-      ["Total Enquiries", "New", "In Progress", "Resolved"],
-      [stats.total, stats.new, stats.inProgress, stats.resolved],
+      ["Total Enquiries", "New", "In Progress", "Completed"],
+      [stats.total, stats.new, stats.inProgress, stats.completed],
       [],
       ["Detailed Enquiries List"],
-      ["Sr. No.", "THT Enquiry No.", "Equipment", "Client", "No. of TAG", "INPUTS REV.", "RECEIVED DATE", "SUBMITTED DATE", "STATUS", "Remarks", "Invoice Raised", "Payment Received"]
+      ["Sr. No.", "THT Enquiry No.", "Equipment", "Client", "No. of TAG", "INPUTS REV.", "REVISION DATE", "RECEIVED DATE", "SUBMITTED DATE", "STATUS", "Remarks", "Invoice Raised", "Payment Received"]
     ];
 
     filteredInquiries.forEach((inq, index) => {
@@ -168,6 +168,7 @@ export default function App() {
         inq.client,
         inq.noOfTag,
         inq.inputsRev,
+        inq.revisionDate ? new Date(inq.revisionDate).toLocaleDateString() : '-',
         inq.receivedDate ? new Date(inq.receivedDate).toLocaleDateString() : '-',
         inq.submissionDate ? new Date(inq.submissionDate).toLocaleDateString() : '-',
         inq.status,
@@ -196,8 +197,8 @@ export default function App() {
 
     // Add Summary Table
     autoTable(doc, {
-      head: [["Total Enquiries", "New", "In Progress", "Resolved"]],
-      body: [[stats.total, stats.new, stats.inProgress, stats.resolved]],
+      head: [["Total Enquiries", "New", "In Progress", "Completed"]],
+      body: [[stats.total, stats.new, stats.inProgress, stats.completed]],
       startY: 20,
       theme: 'grid',
       headStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], halign: 'center' },
@@ -208,7 +209,7 @@ export default function App() {
     const finalY = (doc as any).lastAutoTable.finalY || 20;
     doc.text("Detailed Enquiries List", 14, finalY + 10);
 
-    const tableColumn = ["Sr. No.", "THT No.", "Equipment", "Client", "TAGs", "REV.", "Received", "Submitted", "Status", "Remarks", "Invoice", "Payment"];
+    const tableColumn = ["Sr. No.", "THT No.", "Equipment", "Client", "TAGs", "REV.", "Revision", "Received", "Submitted", "Status", "Remarks", "Invoice", "Payment"];
     const tableRows = filteredInquiries.map((inq, index) => [
       index + 1,
       inq.id,
@@ -216,6 +217,7 @@ export default function App() {
       inq.client,
       inq.noOfTag,
       inq.inputsRev,
+      inq.revisionDate ? new Date(inq.revisionDate).toLocaleDateString() : '-',
       inq.receivedDate ? new Date(inq.receivedDate).toLocaleDateString() : '-',
       inq.submissionDate ? new Date(inq.submissionDate).toLocaleDateString() : '-',
       inq.status,
@@ -317,13 +319,14 @@ export default function App() {
           };
 
           const receivedDate = parseDate(getVal(['received', 'recv', 'date']));
+          const revisionDate = parseDate(getVal(['revision', 'rev date']));
           const submissionDate = parseDate(getVal(['submit', 'subm']));
           
           const statusRaw = String(getVal(['status', 'state']) || 'New').trim();
           let status: InquiryStatus = 'New';
           if (/progress/i.test(statusRaw)) status = 'In Progress';
-          else if (/resolve/i.test(statusRaw)) status = 'Resolved';
-          else if (/close/i.test(statusRaw)) status = 'Closed';
+          else if (/complat|complet/i.test(statusRaw)) status = 'Completed';
+          else if (/order|close/i.test(statusRaw)) status = 'In Order Stage';
           
           const remarks = getVal(['remark', 'note', 'comment']) || '';
           
@@ -340,7 +343,7 @@ export default function App() {
             client: String(client),
             noOfTag,
             inputsRev: String(inputsRev),
-            date: receivedDate || new Date().toISOString(),
+            revisionDate,
             receivedDate,
             submissionDate,
             status,
@@ -431,7 +434,7 @@ export default function App() {
           <StatCard title="Total Enquiries" value={stats.total} icon={<Inbox className="w-5 h-5 text-blue-600" />} bgClass="bg-blue-50" />
           <StatCard title="New" value={stats.new} icon={<CheckCircle className="w-5 h-5 text-amber-600" />} bgClass="bg-amber-50" />
           <StatCard title="In Progress" value={stats.inProgress} icon={<Clock className="w-5 h-5 text-purple-600" />} bgClass="bg-purple-50" />
-          <StatCard title="Resolved" value={stats.resolved} icon={<CheckCircle className="w-5 h-5 text-green-600" />} bgClass="bg-green-50" />
+          <StatCard title="Completed" value={stats.completed} icon={<CheckCircle className="w-5 h-5 text-green-600" />} bgClass="bg-green-50" />
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
@@ -494,8 +497,8 @@ export default function App() {
                 <option value="All">All Statuses</option>
                 <option value="New">New</option>
                 <option value="In Progress">In Progress</option>
-                <option value="Resolved">Resolved</option>
-                <option value="Closed">Closed</option>
+                <option value="Completed">Completed</option>
+                <option value="In Order Stage">In Order Stage</option>
               </select>
             </div>
           </div>
@@ -512,6 +515,7 @@ export default function App() {
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">Client</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">No. of TAG</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">INPUTS REV.</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">REVISION DATE</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">RECEIVED DATE</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">SUBMITTED DATE</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">STATUS</th>
@@ -523,7 +527,7 @@ export default function App() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredInquiries.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                       No enquiries found matching your criteria.
                     </td>
                   </tr>
@@ -540,6 +544,7 @@ export default function App() {
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100">{inquiry.client}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100 text-center">{inquiry.noOfTag}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100">{inquiry.inputsRev}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-100">{inquiry.revisionDate ? new Date(inquiry.revisionDate).toLocaleDateString() : '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-100">{inquiry.receivedDate ? new Date(inquiry.receivedDate).toLocaleDateString() : '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-100">{inquiry.submissionDate ? new Date(inquiry.submissionDate).toLocaleDateString() : '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap border-r border-gray-100"><StatusBadge status={inquiry.status} /></td>

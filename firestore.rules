@@ -42,7 +42,7 @@ service cloud.firestore {
     }
     
     function isValidStatus(status) {
-       return status in ['New', 'In Progress', 'Resolved', 'Closed'];
+       return status in ['New', 'In Progress', 'Completed', 'In Order Stage'];
     }
     
     function isValidNote(note) {
@@ -59,14 +59,14 @@ service cloud.firestore {
     }
 
     function isValidInquiry(data) {
-      return hasRequiredFields(['id', 'srNo', 'equipment', 'client', 'noOfTag', 'inputsRev', 'date', 'status', 'remarks', 'invoiceRaised', 'paymentReceived', 'notes']) &&
+      return hasRequiredFields(['id', 'srNo', 'equipment', 'client', 'noOfTag', 'inputsRev', 'status', 'remarks', 'invoiceRaised', 'paymentReceived', 'notes']) &&
              data.id is string && data.id.size() > 0 && data.id.size() <= 100 &&
              data.srNo is number &&
              data.equipment is string && data.equipment.size() <= 500 &&
              data.client is string && data.client.size() <= 500 &&
              data.noOfTag is number && data.noOfTag >= 0 &&
              data.inputsRev is string && data.inputsRev.size() <= 500 &&
-             data.date is string &&
+             (!('revisionDate' in data) || data.revisionDate == null || data.revisionDate is string) &&
              (!('receivedDate' in data) || data.receivedDate == null || data.receivedDate is string) &&
              (!('submissionDate' in data) || data.submissionDate == null || data.submissionDate is string) &&
              (!('invoiceRaisedDate' in data) || data.invoiceRaisedDate == null || data.invoiceRaisedDate is string) &&

@@ -16,6 +16,7 @@ export default function AddInquiryModal({ isOpen, onClose, onAdd }: Props) {
     client: '',
     noOfTag: 1,
     inputsRev: '',
+    revisionDate: '',
     receivedDate: new Date().toISOString().split('T')[0],
     submissionDate: '',
     status: 'New' as InquiryStatus,
@@ -27,7 +28,7 @@ export default function AddInquiryModal({ isOpen, onClose, onAdd }: Props) {
     onAdd({
       ...formData,
       id: `THT-${formData.id}`,
-      date: new Date(formData.receivedDate).toISOString(), // Keep main date synced with received date
+      revisionDate: formData.revisionDate ? new Date(formData.revisionDate).toISOString() : undefined,
       receivedDate: new Date(formData.receivedDate).toISOString(),
       submissionDate: formData.submissionDate ? new Date(formData.submissionDate).toISOString() : undefined,
       invoiceRaised: false,
@@ -40,6 +41,7 @@ export default function AddInquiryModal({ isOpen, onClose, onAdd }: Props) {
       client: '',
       noOfTag: 1,
       inputsRev: '',
+      revisionDate: '',
       receivedDate: new Date().toISOString().split('T')[0],
       submissionDate: '',
       status: 'New',
@@ -118,6 +120,10 @@ export default function AddInquiryModal({ isOpen, onClose, onAdd }: Props) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Received Date</label>
                   <input type="date" value={formData.receivedDate} onChange={e => setFormData({...formData, receivedDate: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Revision Date</label>
+                  <input type="date" value={formData.revisionDate} onChange={e => setFormData({...formData, revisionDate: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Submitted Date</label>
