@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Inbox, Clock, CheckCircle, Search, Filter, LayoutDashboard, Check, X, Plus, FileSpreadsheet, FileText, Upload } from 'lucide-react';
+import { Inbox, Clock, CheckCircle, Search, Filter, LayoutDashboard, Check, X, Plus, FileSpreadsheet, FileText, Upload, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -22,6 +22,9 @@ export default function App() {
   const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [inquiryToDelete, setInquiryToDelete] = useState<string | null>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -63,10 +66,32 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'inquiries', inquiryToDelete));
       if (selectedInquiryId === inquiryToDelete) setSelectedInquiryId(null);
+      setSelectedRows(prev => prev.filter(id => id !== inquiryToDelete));
       setInquiryToDelete(null);
     } catch (error) {
       console.error("Error deleting inquiry", error);
       alert("Failed to delete inquiry.");
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (selectedRows.length === 0) return;
+    try {
+      const batch = writeBatch(db);
+      selectedRows.forEach(id => {
+        batch.delete(doc(db, 'inquiries', id));
+      });
+      await batch.commit();
+      
+      if (selectedInquiryId && selectedRows.includes(selectedInquiryId)) {
+        setSelectedInquiryId(null);
+      }
+      setSelectedRows([]);
+      setShowBulkDeleteConfirm(false);
+      setIsSelectionMode(false);
+    } catch (error) {
+      console.error("Error bulk deleting inquiries", error);
+      alert("Failed to delete selected inquiries.");
     }
   };
 
@@ -136,6 +161,21 @@ export default function App() {
       return a.id.localeCompare(b.id);
     });
   }, [inquiries, searchQuery, statusFilter]);
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedRows(filteredInquiries.map(inq => inq.id));
+    } else {
+      setSelectedRows([]);
+    }
+  };
+
+  const handleSelectRow = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    setSelectedRows(prev => 
+      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+    );
+  };
 
   const stats = useMemo(() => {
     return {
@@ -486,6 +526,34 @@ export default function App() {
             >
               <Plus className="w-4 h-4" /> Add Enquiry
             </button>
+            {!isSelectionMode ? (
+              <button 
+                onClick={() => setIsSelectionMode(true)}
+                className="bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-200 transition-colors text-sm font-medium whitespace-nowrap"
+              >
+                <Trash2 className="w-4 h-4" /> Bulk Delete
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={() => {
+                    setIsSelectionMode(false);
+                    setSelectedRows([]);
+                  }}
+                  className="bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-200 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  Cancel
+                </button>
+                {selectedRows.length > 0 && (
+                  <button 
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 transition-colors text-sm font-medium whitespace-nowrap"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete ({selectedRows.length})
+                  </button>
+                )}
+              </>
+            )}
             <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-400" />
@@ -509,6 +577,16 @@ export default function App() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-[#9bc2e6]">
                 <tr>
+                  {isSelectionMode && (
+                    <th scope="col" className="px-4 py-3 text-center border-r border-gray-300 w-12 transition-all duration-200 bg-red-50">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                        checked={filteredInquiries.length > 0 && selectedRows.length === filteredInquiries.length}
+                        onChange={handleSelectAll}
+                      />
+                    </th>
+                  )}
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">Sr. No.</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">THT Enquiry No.</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider border-r border-gray-300">Equipment</th>
@@ -527,7 +605,7 @@ export default function App() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredInquiries.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={isSelectionMode ? 14 : 13} className="px-6 py-12 text-center text-gray-500">
                       No enquiries found matching your criteria.
                     </td>
                   </tr>
@@ -535,9 +613,19 @@ export default function App() {
                   filteredInquiries.map((inquiry, index) => (
                     <tr 
                       key={inquiry.id} 
-                      onClick={() => setSelectedInquiryId(inquiry.id)}
-                      className="hover:bg-blue-50 cursor-pointer transition-colors"
+                      onClick={() => !isSelectionMode && setSelectedInquiryId(inquiry.id)}
+                      className={`hover:bg-blue-50 ${!isSelectionMode ? 'cursor-pointer' : ''} transition-colors ${selectedRows.includes(inquiry.id) ? 'bg-red-50 hover:bg-red-100' : ''}`}
                     >
+                      {isSelectionMode && (
+                        <td className="px-4 py-3 border-r border-gray-100 text-center transition-all" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                            checked={selectedRows.includes(inquiry.id)}
+                            onChange={(e) => handleSelectRow(inquiry.id, e)}
+                          />
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100 text-center">{index + 1}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600 border-r border-gray-100">{inquiry.id}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100">{inquiry.equipment}</td>
@@ -599,6 +687,32 @@ export default function App() {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Selected Inquiries</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete <span className="font-semibold text-gray-900">{selectedRows.length}</span> inquiries? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBulkDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete Selected
               </button>
             </div>
           </div>
